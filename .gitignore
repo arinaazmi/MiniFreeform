@@ -1,0 +1,22 @@
+# Xcode user data
+**/xcuserdata/
+**/*.xcuserstate
+
+# Build products
+DerivedData/
+build/
+
+# Swift Package Manager
+.swiftpm/
+.build/
+Packages/
+
+# CocoaPods / Carthage (only if you add them later)
+Pods/
+Carthage/Build/
+
+# macOS
+.DS_Store
+
+# App storage / local files
+*.swp

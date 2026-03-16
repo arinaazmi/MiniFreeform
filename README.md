@@ -93,9 +93,6 @@ Planned next steps:
 2. Select an iOS Simulator
 3. Run with `Cmd + R`
 
-## Project Motivation
-
-This project was designed as a compact native Swift app that demonstrates product-minded engineering: interactive UI, smooth state handling, and clean code organization.
 
 ## Author
 

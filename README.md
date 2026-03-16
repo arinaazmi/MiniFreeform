@@ -1,6 +1,6 @@
 # MiniFreeform
 
-A lightweight SwiftUI canvas app inspired by Apple-style productivity experiences.
+A lightweight SwiftUI canvas app for placing notes, shapes, and freehand sketches, inspired by Apple's Productivity apps.
 
 MiniFreeform lets users place simple shapes, draw freehand strokes, and add text notes on a clean canvas. It was built to showcase native Swift development, UI architecture, 2D drawing, and concurrency in a small but polished project.
 
@@ -39,7 +39,7 @@ The canvas is built around three item types:
 - `FreehandItem`
 - `TextItem`
 
-These are wrapped in a single `CanvasItem` enum so the app can manage heterogeneous canvas objects cleanly while preserving type safety.
+These are wrapped in a single `CanvasItem` enum so the app can manage multiple item types cleanly while keeping the model structured and reliable.
 
 ### View Model
 `CanvasViewModel` owns the canvas state and handles:
@@ -93,6 +93,7 @@ Planned next steps:
 2. Select an iOS Simulator
 3. Run with `Cmd + R`
 
+Demo Link: [MiniFreeform Demo](https://www.youtube.com/watch?v=x4C_BEMntko)
 
 ## Author
 

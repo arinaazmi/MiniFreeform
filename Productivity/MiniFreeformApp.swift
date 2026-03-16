@@ -28,6 +28,21 @@ enum CanvasColor: String, Codable, CaseIterable {
             return .primary
         }
     }
+
+    var nextCardColor: CanvasColor {
+        switch self {
+        case .blue:
+            return .coral
+        case .coral:
+            return .gold
+        case .gold:
+            return .mint
+        case .mint:
+            return .blue
+        case .primary:
+            return .blue
+        }
+    }
 }
 
 enum CanvasItem: Identifiable, Codable {
@@ -175,6 +190,24 @@ final class CanvasViewModel: ObservableObject {
 
         item.text = newText
         items[index] = .text(item)
+        scheduleSave()
+    }
+
+    func cycleColor(of id: UUID) {
+        guard let index = items.firstIndex(where: { $0.id == id }) else { return }
+
+        switch items[index] {
+        case .rectangle(var item):
+            item.color = item.color.nextCardColor
+            items[index] = .rectangle(item)
+        case .freehand(var item):
+            item.strokeColor = item.strokeColor.nextCardColor
+            items[index] = .freehand(item)
+        case .text(var item):
+            item.color = item.color.nextCardColor
+            items[index] = .text(item)
+        }
+
         scheduleSave()
     }
 
@@ -436,15 +469,24 @@ private struct EmptyCanvasView: View {
 }
 
 private struct CanvasControlBar: View {
+    let isDrawingStroke: Bool
     let canEditText: Bool
+    let canRecolorSelection: Bool
     let hasSelection: Bool
     let hasItems: Bool
     let addRectangle: () -> Void
-    let addFreehand: () -> Void
+    let toggleFreehand: () -> Void
     let addText: () -> Void
     let editText: () -> Void
+    let recolorSelection: () -> Void
     let deleteSelection: () -> Void
     let clearCanvas: () -> Void
+
+    private let columns = [
+        GridItem(.flexible(), spacing: 10),
+        GridItem(.flexible(), spacing: 10),
+        GridItem(.flexible(), spacing: 10)
+    ]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -452,14 +494,17 @@ private struct CanvasControlBar: View {
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
 
-            HStack(spacing: 10) {
+            LazyVGrid(columns: columns, spacing: 10) {
                 controlButton("Note", systemImage: "text.badge.plus", action: addText)
                 controlButton("Card", systemImage: "square.on.square", action: addRectangle)
-                controlButton("Stroke", systemImage: "pencil.tip.crop.circle.badge.plus", action: addFreehand)
-            }
-
-            HStack(spacing: 10) {
-                controlButton("Edit Text", systemImage: "text.cursor", isEnabled: canEditText, action: editText)
+                controlButton(
+                    isDrawingStroke ? "Cancel" : "Stroke",
+                    systemImage: isDrawingStroke ? "xmark.circle" : "pencil.tip.crop.circle.badge.plus",
+                    role: isDrawingStroke ? .cancel : nil,
+                    action: toggleFreehand
+                )
+                controlButton("Edit", systemImage: "text.cursor", isEnabled: canEditText, action: editText)
+                controlButton("Tint", systemImage: "paintpalette", isEnabled: canRecolorSelection, action: recolorSelection)
                 controlButton("Delete", systemImage: "trash", isEnabled: hasSelection, role: .destructive, action: deleteSelection)
                 controlButton("Clear", systemImage: "sparkles.rectangle.stack", isEnabled: hasItems, role: .destructive, action: clearCanvas)
             }
@@ -479,9 +524,16 @@ private struct CanvasControlBar: View {
         action: @escaping () -> Void
     ) -> some View {
         Button(role: role, action: action) {
-            Label(title, systemImage: systemImage)
-                .font(.subheadline.weight(.semibold))
-                .frame(maxWidth: .infinity)
+            VStack(spacing: 6) {
+                Image(systemName: systemImage)
+                    .font(.headline)
+                Text(title)
+                    .font(.caption.weight(.semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+            }
+            .frame(maxWidth: .infinity, minHeight: 44)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.borderedProminent)
         .tint(role == .destructive ? .red : .accentColor)
@@ -495,54 +547,14 @@ struct CanvasView: View {
     @State private var dragStartPositions: [UUID: CGPoint] = [:]
     @State private var isEditingText = false
     @State private var isConfirmingClear = false
+    @State private var isDrawingStroke = false
+    @State private var drawingPoints: [CGPoint] = []
+    @State private var drawingColor: CanvasColor = .coral
     @State private var textDraft = ""
 
     var body: some View {
         GeometryReader { proxy in
-            ZStack {
-                CanvasGridBackground()
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        selectedItemID = nil
-                    }
-
-                if model.items.isEmpty {
-                    EmptyCanvasView(addNote: {
-                        addText(in: proxy.size)
-                    })
-                }
-
-                ForEach(model.items) { item in
-                    CanvasItemView(item: item, isSelected: item.id == selectedItemID)
-                        .position(item.position)
-                        .accessibilityIdentifier(accessibilityIdentifier(for: item))
-                        .onTapGesture {
-                            selectedItemID = item.id
-                            model.bringToFront(item.id)
-                        }
-                        .gesture(
-                            DragGesture()
-                                .onChanged { value in
-                                    selectedItemID = item.id
-                                    let startPosition = dragStartPositions[item.id] ?? item.position
-                                    dragStartPositions[item.id] = startPosition
-                                    model.bringToFront(item.id)
-                                    model.updatePosition(
-                                        of: item.id,
-                                        to: clampedPosition(
-                                            startPosition,
-                                            translation: value.translation,
-                                            item: item,
-                                            canvasSize: proxy.size
-                                        )
-                                    )
-                                }
-                                .onEnded { _ in
-                                    dragStartPositions[item.id] = nil
-                                }
-                        )
-                }
-            }
+            canvasLayer(for: proxy.size)
             .navigationTitle("Mini Freeform")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -558,13 +570,16 @@ struct CanvasView: View {
             }
             .safeAreaInset(edge: .bottom) {
                 CanvasControlBar(
+                    isDrawingStroke: isDrawingStroke,
                     canEditText: selectedTextItem != nil,
+                    canRecolorSelection: selectedItem != nil,
                     hasSelection: selectedItemID != nil,
                     hasItems: !model.items.isEmpty,
                     addRectangle: { addRectangle(in: proxy.size) },
-                    addFreehand: { addFreehand(in: proxy.size) },
+                    toggleFreehand: toggleStrokeMode,
                     addText: { addText(in: proxy.size) },
                     editText: startEditingSelectedText,
+                    recolorSelection: recolorSelectedItem,
                     deleteSelection: deleteSelectedItem,
                     clearCanvas: { isConfirmingClear = true }
                 )
@@ -595,6 +610,129 @@ struct CanvasView: View {
         return model.items.first(where: { $0.id == selectedItemID && $0.textValue != nil })
     }
 
+    private var selectedItem: CanvasItem? {
+        guard let selectedItemID else { return nil }
+        return model.items.first(where: { $0.id == selectedItemID })
+    }
+
+    @ViewBuilder
+    private func canvasLayer(for canvasSize: CGSize) -> some View {
+        ZStack {
+            CanvasGridBackground()
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    if isDrawingStroke {
+                        cancelDrawingStroke()
+                    } else {
+                        selectedItemID = nil
+                    }
+                }
+
+            if model.items.isEmpty && !isDrawingStroke {
+                EmptyCanvasView(addNote: {
+                    addText(in: canvasSize)
+                })
+            }
+
+            ForEach(model.items) { item in
+                canvasItemView(item, canvasSize: canvasSize)
+            }
+
+            if isDrawingStroke {
+                drawingOverlay
+            }
+        }
+    }
+
+    private func canvasItemView(_ item: CanvasItem, canvasSize: CGSize) -> some View {
+        CanvasItemView(item: item, isSelected: item.id == selectedItemID)
+            .position(item.position)
+            .accessibilityIdentifier(accessibilityIdentifier(for: item))
+            .onTapGesture {
+                guard !isDrawingStroke else { return }
+                selectedItemID = item.id
+                model.bringToFront(item.id)
+            }
+            .gesture(itemDragGesture(for: item, canvasSize: canvasSize))
+            .allowsHitTesting(!isDrawingStroke)
+    }
+
+    private var drawingOverlay: some View {
+        ZStack {
+            Color.clear
+                .contentShape(Rectangle())
+                .gesture(
+                    DragGesture(minimumDistance: 0)
+                        .onChanged { value in
+                            appendDrawingPoint(value.location)
+                        }
+                        .onEnded { _ in
+                            finishDrawingStroke()
+                        }
+                )
+
+            if !drawingPoints.isEmpty {
+                drawingPreview
+            } else {
+                drawingPrompt
+            }
+        }
+    }
+
+    private func itemDragGesture(for item: CanvasItem, canvasSize: CGSize) -> some Gesture {
+        DragGesture()
+            .onChanged { value in
+                guard !isDrawingStroke else { return }
+                selectedItemID = item.id
+                let startPosition = dragStartPositions[item.id] ?? item.position
+                dragStartPositions[item.id] = startPosition
+                model.bringToFront(item.id)
+
+                let nextPosition = clampedPosition(
+                    startPosition,
+                    translation: value.translation,
+                    item: item,
+                    canvasSize: canvasSize
+                )
+                model.updatePosition(of: item.id, to: nextPosition)
+            }
+            .onEnded { _ in
+                dragStartPositions[item.id] = nil
+            }
+    }
+
+    @ViewBuilder
+    private var drawingPrompt: some View {
+        VStack(spacing: 8) {
+            Label("Draw on the canvas", systemImage: "hand.draw")
+                .font(.headline)
+            Text("Drag anywhere to create a freehand stroke.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 14)
+        .background(.regularMaterial, in: Capsule())
+        .padding(.top, 20)
+        .frame(maxHeight: .infinity, alignment: .top)
+    }
+
+    private var drawingPreview: some View {
+        Path { path in
+            guard let firstPoint = drawingPoints.first else { return }
+            path.move(to: firstPoint)
+            for point in drawingPoints.dropFirst() {
+                path.addLine(to: point)
+            }
+        }
+        .stroke(
+            drawingColor.swiftUIColor,
+            style: StrokeStyle(lineWidth: 4, lineCap: .round, lineJoin: .round)
+        )
+        .shadow(color: drawingColor.swiftUIColor.opacity(0.18), radius: 6, y: 2)
+        .allowsHitTesting(false)
+    }
+
     private func accessibilityIdentifier(for item: CanvasItem) -> String {
         switch item {
         case .rectangle:
@@ -607,6 +745,7 @@ struct CanvasView: View {
     }
 
     private func addRectangle(in size: CGSize) {
+        guard !isDrawingStroke else { return }
         let item = RectangleItem(
             position: model.suggestedPosition(in: size),
             size: CGSize(width: 160, height: 120),
@@ -616,25 +755,8 @@ struct CanvasView: View {
         selectedItemID = item.id
     }
 
-    private func addFreehand(in size: CGSize) {
-        let points = [
-            CGPoint(x: 0, y: 4),
-            CGPoint(x: 24, y: 22),
-            CGPoint(x: 46, y: 14),
-            CGPoint(x: 82, y: 42),
-            CGPoint(x: 118, y: 12)
-        ]
-        let item = FreehandItem(
-            position: model.suggestedPosition(in: size),
-            points: points,
-            strokeColor: [.coral, .blue, .mint].randomElement() ?? .coral,
-            lineWidth: 4
-        )
-        model.add(.freehand(item))
-        selectedItemID = item.id
-    }
-
     private func addText(in size: CGSize) {
+        guard !isDrawingStroke else { return }
         let prompts = [
             "Weekly priorities",
             "Capture this idea",
@@ -667,6 +789,67 @@ struct CanvasView: View {
         guard let selectedItemID else { return }
         model.remove(selectedItemID)
         self.selectedItemID = nil
+    }
+
+    private func recolorSelectedItem() {
+        guard let selectedItemID else { return }
+        model.cycleColor(of: selectedItemID)
+    }
+
+    private func toggleStrokeMode() {
+        if isDrawingStroke {
+            cancelDrawingStroke()
+        } else {
+            isDrawingStroke = true
+            drawingPoints = []
+            drawingColor = [.coral, .blue, .mint, .gold].randomElement() ?? .coral
+            selectedItemID = nil
+        }
+    }
+
+    private func appendDrawingPoint(_ point: CGPoint) {
+        if let lastPoint = drawingPoints.last {
+            let distance = hypot(point.x - lastPoint.x, point.y - lastPoint.y)
+            guard distance > 2 else { return }
+        }
+
+        drawingPoints.append(point)
+    }
+
+    private func finishDrawingStroke() {
+        defer {
+            drawingPoints = []
+            isDrawingStroke = false
+        }
+
+        guard let item = makeFreehandItem(from: drawingPoints, color: drawingColor) else { return }
+        model.add(.freehand(item))
+        selectedItemID = item.id
+    }
+
+    private func cancelDrawingStroke() {
+        drawingPoints = []
+        isDrawingStroke = false
+    }
+
+    private func makeFreehandItem(from points: [CGPoint], color: CanvasColor) -> FreehandItem? {
+        guard points.count > 1 else { return nil }
+
+        let minX = points.map(\.x).min() ?? 0
+        let maxX = points.map(\.x).max() ?? 0
+        let minY = points.map(\.y).min() ?? 0
+        let maxY = points.map(\.y).max() ?? 0
+        let width = maxX - minX
+        let height = maxY - minY
+
+        guard width > 6 || height > 6 else { return nil }
+
+        return FreehandItem(
+            position: CGPoint(x: minX + (width / 2), y: minY + (height / 2)),
+            points: points,
+            strokeColor: color,
+            lineWidth: 4
+        )
     }
 
     private func clampedPosition(

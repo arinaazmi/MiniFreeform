@@ -23,12 +23,19 @@ final class ProductivityUITests: XCTestCase {
     }
 
     @MainActor
-    func testExample() throws {
-        // UI tests must launch the application that they test.
+    func testCanvasControlsAndFirstItemFlow() throws {
         let app = XCUIApplication()
         app.launch()
 
-        // Use XCTAssert and related functions to verify your tests produce the correct results.
+        XCTAssertTrue(app.staticTexts["Start a lightweight board"].waitForExistence(timeout: 2))
+        XCTAssertTrue(app.buttons["Add Your First Note"].exists)
+
+        app.buttons["Add Your First Note"].tap()
+
+        XCTAssertTrue(app.otherElements["textItem"].waitForExistence(timeout: 2))
+        XCTAssertTrue(app.buttons["Card"].exists)
+        XCTAssertTrue(app.buttons["Stroke"].exists)
+        XCTAssertTrue(app.buttons["Edit Text"].exists)
     }
 
     @MainActor

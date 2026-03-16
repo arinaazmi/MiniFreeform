@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		84F0D7232F67E0360056D591 /* .gitignore in Resources */ = {isa = PBXBuildFile; fileRef = 84F0D7222F67E02D0056D591 /* .gitignore */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		84F0D6EA2F67D4690056D591 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -27,6 +31,8 @@
 		84F0D6DC2F67D4630056D591 /* Productivity.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Productivity.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		84F0D6E92F67D4690056D591 /* ProductivityTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ProductivityTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		84F0D6F32F67D4690056D591 /* ProductivityUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ProductivityUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		84F0D7222F67E02D0056D591 /* .gitignore */ = {isa = PBXFileReference; lastKnownFileType = text; path = .gitignore; sourceTree = "<group>"; };
+		84F0D7262F67E0840056D591 /* Untitled.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Untitled.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -79,6 +85,8 @@
 				84F0D6EC2F67D4690056D591 /* ProductivityTests */,
 				84F0D6F62F67D4690056D591 /* ProductivityUITests */,
 				84F0D6DD2F67D4630056D591 /* Products */,
+				84F0D7222F67E02D0056D591 /* .gitignore */,
+				84F0D7262F67E0840056D591 /* Untitled.swift */,
 			);
 			sourceTree = "<group>";
 		};
@@ -212,6 +220,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				84F0D7232F67E0360056D591 /* .gitignore in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
